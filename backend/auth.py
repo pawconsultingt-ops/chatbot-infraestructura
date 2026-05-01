@@ -2,8 +2,11 @@
 Authentication module for FastAPI using Firebase Admin SDK.
 """
 
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import firebase_admin
 from firebase_admin import auth as fb_auth
@@ -111,8 +114,9 @@ def verify_firebase_token(token: str) -> dict[str, Any]:
         try:
             fb_auth.set_custom_user_claims(uid, {"role": "assistant_user"})
             role = "assistant_user"
-        except Exception:
-            pass  # Don't block login if claim assignment fails
+            logger.info("Auto-assigned assistant_user role to uid=%s", uid)
+        except Exception as exc:
+            logger.error("Failed to auto-assign role to uid=%s: %s", uid, exc)
 
     return {
         "uid":   uid,

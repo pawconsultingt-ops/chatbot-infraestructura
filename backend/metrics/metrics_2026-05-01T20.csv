@@ -1,0 +1,1 @@
+ts,endpoint,method,status_code,latency_e2e_ms,inference_ms,tokens_in,tokens_out,used_search,req_bytes,resp_bytes,uid,ram_used_mb,cpu_avg_pct
