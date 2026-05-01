@@ -1,0 +1,674 @@
+{
+  "meta": {
+    "project": "chatbot-infraestructura",
+    "generated_at": "2026-04-30",
+    "analyzer_version": "1.0",
+    "description": "Perfil de infraestructura para diseño de pruebas de estrés por cuello de botella"
+  },
+
+  "endpoints": [
+    {
+      "id": "EP-01",
+      "path": "/health",
+      "method": "GET",
+      "file": "backend/main.py",
+      "auth_required": false,
+      "roles_allowed": [],
+      "description": "Health check público, retorna estado del servidor",
+      "computation": {
+        "bound_type": "none",
+        "relative_weight": 0.01,
+        "latency_estimate_ms": { "p50": 2, "p95": 10, "p99": 30 },
+        "steps": [
+          "Return static JSON"
+        ],
+        "external_calls": [],
+        "cpu_intensive": false,
+        "gpu_intensive": false,
+        "io_intensive": false,
+        "memory_pressure": "negligible"
+      },
+      "stress_target": false
+    },
+    {
+      "id": "EP-02",
+      "path": "/chat",
+      "method": "POST",
+      "file": "backend/main.py",
+      "auth_required": true,
+      "roles_allowed": ["assistant_user"],
+      "description": "Envío de mensaje al agente LLM. Endpoint más costoso: involucra auth, DB read, LLM call, web search opcional y DB write",
+      "request_schema": {
+        "message": "str (1-4096 chars)",
+        "session_id": "Optional[str]"
+      },
+      "response_schema": {
+        "reply": "str",
+        "session_id": "str",
+        "tokens_used": "int",
+        "used_search": "bool"
+      },
+      "computation": {
+        "bound_type": "io",
+        "relative_weight": 1.0,
+        "latency_estimate_ms": {
+          "without_search": { "p50": 3500, "p95": 8000, "p99": 15000 },
+          "with_search":    { "p50": 6500, "p95": 14000, "p99": 25000 }
+        },
+        "steps": [
+          "1. HTTPBearer: extraer Bearer token del header",
+          "2. Firebase Admin SDK: verificar ID token (red → Google Auth)",
+          "3. Custom claim check: extraer rol del payload",
+          "4. Firestore READ: get_session_history(uid) — carga historial COMPLETO",
+          "5. _to_langchain_history(): conversión formato Firestore → LangChain",
+          "6. AgentExecutor.invoke(): primera llamada Mistral API (mistral-large-latest)",
+          "7. [CONDICIONAL] TavilySearchResults: búsqueda web (3 resultados)",
+          "8. [CONDICIONAL] Segunda llamada Mistral API con contexto de búsqueda",
+          "9. Firestore WRITE: save_message() — mensaje usuario (ArrayUnion)",
+          "10. Firestore WRITE: save_message() — respuesta asistente (ArrayUnion)"
+        ],
+        "external_calls": ["firebase-auth", "firestore-read", "mistral-api", "tavily-api", "firestore-write-x2"],
+        "cpu_intensive": false,
+        "gpu_intensive": false,
+        "io_intensive": true,
+        "memory_pressure": "medium",
+        "notes": "El historial completo de mensajes se carga en memoria en cada petición. No hay límite de mensajes históricos. Sin caché, sin paginación."
+      },
+      "stress_target": true,
+      "stress_scenarios": [
+        "solo_llm: deshabilitar Tavily, medir latencia Mistral pura",
+        "con_search: forzar queries que activen Tavily siempre",
+        "historial_largo: sesiones con 200+ mensajes para medir impacto de carga masiva",
+        "concurrencia: N usuarios simultáneos para detectar contención en Firestore"
+      ]
+    },
+    {
+      "id": "EP-03",
+      "path": "/history",
+      "method": "GET",
+      "file": "backend/main.py",
+      "auth_required": true,
+      "roles_allowed": ["assistant_user", "viewer", "admin"],
+      "description": "Recupera historial de conversación del usuario autenticado",
+      "response_schema": {
+        "messages": "list[dict]",
+        "total_messages": "int"
+      },
+      "computation": {
+        "bound_type": "io",
+        "relative_weight": 0.15,
+        "latency_estimate_ms": { "p50": 300, "p95": 800, "p99": 1500 },
+        "steps": [
+          "1. HTTPBearer: extraer token",
+          "2. Firebase Admin SDK: verificar token",
+          "3. Custom claim check: rol mínimo viewer",
+          "4. Firestore READ: get_session_history(uid)"
+        ],
+        "external_calls": ["firebase-auth", "firestore-read"],
+        "cpu_intensive": false,
+        "gpu_intensive": false,
+        "io_intensive": true,
+        "memory_pressure": "low-medium",
+        "notes": "Carga el array completo de mensajes. Con historiales largos puede ser costoso en ancho de banda Firestore."
+      },
+      "stress_target": true,
+      "stress_scenarios": [
+        "historial_masivo: leer sesiones con 500+ mensajes",
+        "concurrencia_reads: 100 usuarios leyendo historial simultáneamente"
+      ]
+    },
+    {
+      "id": "EP-04",
+      "path": "/history",
+      "method": "DELETE",
+      "file": "backend/main.py",
+      "auth_required": true,
+      "roles_allowed": ["assistant_user"],
+      "description": "Elimina documento completo de sesión del usuario",
+      "computation": {
+        "bound_type": "io",
+        "relative_weight": 0.10,
+        "latency_estimate_ms": { "p50": 250, "p95": 700, "p99": 1200 },
+        "steps": [
+          "1. HTTPBearer: extraer token",
+          "2. Firebase Admin SDK: verificar token",
+          "3. Custom claim check: rol assistant_user",
+          "4. Firestore DELETE: document(uid).delete()"
+        ],
+        "external_calls": ["firebase-auth", "firestore-delete"],
+        "cpu_intensive": false,
+        "gpu_intensive": false,
+        "io_intensive": true,
+        "memory_pressure": "negligible"
+      },
+      "stress_target": false
+    },
+    {
+      "id": "EP-05",
+      "path": "/admin/sessions",
+      "method": "GET",
+      "file": "backend/main.py",
+      "auth_required": true,
+      "roles_allowed": ["admin"],
+      "description": "Lista todas las sesiones activas. Hace un collection scan completo de Firestore",
+      "response_schema": {
+        "sessions": "list[dict con uid, email, message_count, updated_at]",
+        "total": "int"
+      },
+      "computation": {
+        "bound_type": "io",
+        "relative_weight": 0.35,
+        "latency_estimate_ms": { "p50": 500, "p95": 2000, "p99": 5000 },
+        "steps": [
+          "1. HTTPBearer: extraer token",
+          "2. Firebase Admin SDK: verificar token",
+          "3. Custom claim check: rol admin",
+          "4. Firestore COLLECTION SCAN: get_all_sessions() — lee TODOS los documentos"
+        ],
+        "external_calls": ["firebase-auth", "firestore-collection-scan"],
+        "cpu_intensive": false,
+        "gpu_intensive": false,
+        "io_intensive": true,
+        "memory_pressure": "high",
+        "notes": "ALERTA: collection scan sin paginación. Con 10,000+ usuarios activos puede superar tiempos de timeout y costos de lectura Firestore. Es el endpoint más frágil ante crecimiento."
+      },
+      "stress_target": true,
+      "stress_scenarios": [
+        "muchos_usuarios: poblar 10k sesiones y medir degradación",
+        "concurrent_admin_calls: múltiples admins listando simultáneamente"
+      ]
+    }
+  ],
+
+  "external_dependencies": [
+    {
+      "id": "DEP-01",
+      "name": "Mistral AI API",
+      "type": "llm_inference",
+      "provider": "Mistral AI (cloud)",
+      "model": "mistral-large-latest",
+      "config_key": "MISTRAL_API_KEY",
+      "used_by": ["EP-02"],
+      "protocol": "HTTPS REST",
+      "auth_method": "API Key (header)",
+      "latency_profile": {
+        "first_token_ms": { "p50": 800, "p95": 2500 },
+        "total_response_ms": { "p50": 3000, "p95": 8000 },
+        "with_tool_call_extra_ms": { "p50": 3000, "p95": 8000 }
+      },
+      "bottleneck": true,
+      "bottleneck_reasons": [
+        "Mayor latencia absoluta del sistema (domina el tiempo de respuesta)",
+        "Rate limits por tier de API key (requests/min y tokens/min)",
+        "Sin retry automático en agent.py",
+        "Sin timeout explícito configurado — puede colgar indefinidamente",
+        "Historial completo enviado como contexto en cada llamada (crece con el tiempo)"
+      ],
+      "failure_modes": [
+        "Timeout de red (>30s sin respuesta)",
+        "Rate limit 429 → error no recuperable actual",
+        "Respuesta malformada de tool_call → LangChain exception"
+      ],
+      "has_cache": false,
+      "has_retry": false,
+      "has_timeout": false,
+      "stress_test_approach": "Mock Mistral con latencia artificial variable (100ms, 2s, 10s, timeout) para aislar impacto"
+    },
+    {
+      "id": "DEP-02",
+      "name": "Tavily Search API",
+      "type": "web_search",
+      "provider": "Tavily (cloud)",
+      "config_key": "TAVILY_API_KEY",
+      "used_by": ["EP-02"],
+      "protocol": "HTTPS REST",
+      "auth_method": "API Key",
+      "trigger": "condicional — solo cuando el agente LLM decide usar la herramienta search_web",
+      "max_results": 3,
+      "latency_profile": {
+        "total_response_ms": { "p50": 1500, "p95": 4000 }
+      },
+      "bottleneck": true,
+      "bottleneck_reasons": [
+        "Añade 1.5–4s al path crítico cuando se activa",
+        "El agente puede activarla en hasta el 40-60% de las queries según tipo",
+        "Sin caché de resultados (misma query repetida = llamada duplicada)",
+        "Rate limits en tier dev (tvly-dev-*)"
+      ],
+      "failure_modes": [
+        "Timeout de búsqueda → el agente recibe error como resultado de tool",
+        "Rate limit 429 → falla silenciosa o excepción en LangChain"
+      ],
+      "has_cache": false,
+      "has_retry": false,
+      "has_timeout": false,
+      "stress_test_approach": "Saturar con queries que fuercen búsqueda (fechas recientes, noticias) y medir % de degradación vs sin búsqueda"
+    },
+    {
+      "id": "DEP-03",
+      "name": "Firebase Authentication",
+      "type": "auth_verification",
+      "provider": "Google Firebase (cloud)",
+      "config_key": "GOOGLE_APPLICATION_CREDENTIALS (service-account.json)",
+      "used_by": ["EP-02", "EP-03", "EP-04", "EP-05"],
+      "protocol": "Firebase Admin SDK (gRPC interno)",
+      "auth_method": "Service Account JWT",
+      "latency_profile": {
+        "token_verify_ms": { "p50": 80, "p95": 350, "p99": 800 }
+      },
+      "bottleneck": false,
+      "bottleneck_reasons": [
+        "Relativamente rápido (80-350ms)",
+        "Sin embargo: cada request hace verificación en línea (no hay token cache local)",
+        "En alta concurrencia, puede ser cuello de botella secundario"
+      ],
+      "failure_modes": [
+        "503: service-account.json no encontrado o inválido",
+        "Token expirado (1 hora) — cliente debe refrescar",
+        "Google Auth API caída → todos los endpoints protegidos fallan"
+      ],
+      "has_cache": false,
+      "has_retry": false,
+      "has_timeout": false,
+      "stress_test_approach": "Medir overhead de verificación con 500 req/s concurrentes sin tocar Mistral/Firestore"
+    },
+    {
+      "id": "DEP-04",
+      "name": "Google Firestore",
+      "type": "database",
+      "provider": "Google Cloud (serverless NoSQL)",
+      "config_key": "FIREBASE_PROJECT_ID + GOOGLE_APPLICATION_CREDENTIALS",
+      "used_by": ["EP-02", "EP-03", "EP-04", "EP-05"],
+      "protocol": "Firebase Admin SDK (gRPC)",
+      "latency_profile": {
+        "single_document_read_ms": { "p50": 50, "p95": 200 },
+        "single_document_write_ms": { "p50": 80, "p95": 300 },
+        "collection_scan_ms": { "p50": 300, "p95": 2000, "note": "escala con N documentos" }
+      },
+      "operations": {
+        "get_session_history": { "type": "document_read", "endpoint": ["EP-02", "EP-03"] },
+        "save_message_user": { "type": "arrayunion_write", "endpoint": ["EP-02"] },
+        "save_message_assistant": { "type": "arrayunion_write", "endpoint": ["EP-02"] },
+        "clear_session": { "type": "document_delete", "endpoint": ["EP-04"] },
+        "get_all_sessions": { "type": "collection_scan", "endpoint": ["EP-05"] }
+      },
+      "bottleneck": true,
+      "bottleneck_reasons": [
+        "EP-02 hace 3 operaciones Firestore por request (1 read + 2 writes)",
+        "Historial sin límite de tamaño → documentos crecen indefinidamente",
+        "get_all_sessions() es un collection scan SIN PAGINACIÓN",
+        "ArrayUnion es atómico pero no escala a alta concurrencia en mismo documento",
+        "Sin connection pool explícito (SDK gestiona internamente)",
+        "Sin capa de caché local (Redis, memcache)"
+      ],
+      "failure_modes": [
+        "Quota excedida (reads/writes por día en Spark plan)",
+        "Documento demasiado grande (límite Firestore: 1MB) con historial muy largo",
+        "Timeout de escritura → mensaje guardado parcialmente (user pero no assistant)"
+      ],
+      "has_cache": false,
+      "has_retry": false,
+      "has_timeout": false,
+      "stress_test_approach": "Medir degradación con documentos de 100KB, 500KB, 900KB. Probar 100 writes concurrentes en mismo documento."
+    }
+  ],
+
+  "architecture_gaps": [
+    {
+      "id": "GAP-01",
+      "severity": "high",
+      "description": "No hay caché de ningún tipo",
+      "impact": "Cada request repite verificación de token, lectura de historial y llamadas externas",
+      "solution": "Redis para: tokens verificados (TTL 5min), historial de sesión (TTL 10min)"
+    },
+    {
+      "id": "GAP-02",
+      "severity": "high",
+      "description": "Historial de sesión sin límite ni paginación",
+      "impact": "Documentos Firestore crecen indefinidamente. Contexto LLM crece → más tokens → más latencia y costo",
+      "solution": "Sliding window de últimos N mensajes (ej: 20). Archivar historial antiguo."
+    },
+    {
+      "id": "GAP-03",
+      "severity": "high",
+      "description": "Sin timeout en llamadas a APIs externas (Mistral, Tavily)",
+      "impact": "Una petición colgada bloquea el worker de uvicorn indefinidamente",
+      "solution": "httpx timeout=30s en cliente Mistral, asyncio.wait_for() en agente"
+    },
+    {
+      "id": "GAP-04",
+      "severity": "medium",
+      "description": "Sin retry con backoff en llamadas externas",
+      "impact": "Errores transitorios de red (502, 503) resultan en fallo inmediato al usuario",
+      "solution": "tenacity library con exponential backoff (max 3 intentos)"
+    },
+    {
+      "id": "GAP-05",
+      "severity": "medium",
+      "description": "Sin rate limiting por usuario",
+      "impact": "Un usuario puede saturar el sistema enviando 1000 mensajes/segundo",
+      "solution": "slowapi (Rate Limiter para FastAPI): 10 req/min por uid en /chat"
+    },
+    {
+      "id": "GAP-06",
+      "severity": "medium",
+      "description": "/admin/sessions hace collection scan sin paginación",
+      "impact": "Con 10k+ sesiones: timeout, alto costo Firestore y OOM potential",
+      "solution": "Paginación con cursores Firestore (limit + start_after)"
+    },
+    {
+      "id": "GAP-07",
+      "severity": "low",
+      "description": "CORS allow_origins=[\"*\"] en producción",
+      "impact": "Cualquier sitio puede hacer requests autenticados al backend",
+      "solution": "Restringir a dominios específicos del frontend"
+    },
+    {
+      "id": "GAP-08",
+      "severity": "critical",
+      "description": "API keys expuestas en repositorio (.env y service-account.json presentes en git)",
+      "impact": "MISTRAL_API_KEY, TAVILY_API_KEY y Firebase private key en texto plano",
+      "solution": "Rotar todas las claves INMEDIATAMENTE. Usar secrets manager (Vault, GCP Secret Manager)"
+    }
+  ],
+
+  "most_expensive_flow": {
+    "name": "POST /chat con búsqueda web activada",
+    "endpoint": "EP-02",
+    "total_steps": 10,
+    "estimated_total_ms": { "p50": 6500, "p95": 14000 },
+    "flow": [
+      {
+        "step": 1,
+        "name": "HTTP Request ingress",
+        "component": "FastAPI + uvicorn",
+        "latency_ms": { "p50": 1, "p95": 5 },
+        "bound": "cpu",
+        "description": "Recepción de POST /chat, parsing JSON, validación Pydantic ChatRequest"
+      },
+      {
+        "step": 2,
+        "name": "Token extraction",
+        "component": "HTTPBearer middleware",
+        "latency_ms": { "p50": 1, "p95": 2 },
+        "bound": "cpu",
+        "description": "Extracción del Bearer token del header Authorization"
+      },
+      {
+        "step": 3,
+        "name": "Firebase token verification",
+        "component": "Firebase Admin SDK → Google Auth API",
+        "latency_ms": { "p50": 80, "p95": 350 },
+        "bound": "io",
+        "is_bottleneck": false,
+        "description": "Verificación criptográfica del ID token contra Google. Carga útil: uid, email, custom claims (role)"
+      },
+      {
+        "step": 4,
+        "name": "RBAC check",
+        "component": "require_role() FastAPI dependency",
+        "latency_ms": { "p50": 0.1, "p95": 0.5 },
+        "bound": "cpu",
+        "description": "Verificación de que el claim 'role' == 'assistant_user'"
+      },
+      {
+        "step": 5,
+        "name": "Firestore session read",
+        "component": "firestore_service.get_session_history(uid)",
+        "latency_ms": { "p50": 50, "p95": 200 },
+        "bound": "io",
+        "is_bottleneck": true,
+        "description": "Lectura del documento completo de sesión. Tamaño crece linealmente con mensajes históricos. Sin caché."
+      },
+      {
+        "step": 6,
+        "name": "History conversion",
+        "component": "agent._to_langchain_history()",
+        "latency_ms": { "p50": 1, "p95": 10 },
+        "bound": "cpu",
+        "description": "Conversión de lista de dicts Firestore a objetos HumanMessage/AIMessage de LangChain"
+      },
+      {
+        "step": 7,
+        "name": "LLM first inference",
+        "component": "Mistral API (mistral-large-latest)",
+        "latency_ms": { "p50": 2000, "p95": 6000 },
+        "bound": "io (gpu en proveedor)",
+        "is_bottleneck": true,
+        "description": "Primera llamada al LLM. Input: historial completo + mensaje usuario. Output: tool_call para search_web. Tokens de entrada escalan con historial."
+      },
+      {
+        "step": 8,
+        "name": "Tavily web search",
+        "component": "TavilySearchResults tool",
+        "latency_ms": { "p50": 1500, "p95": 4000 },
+        "bound": "io",
+        "is_bottleneck": true,
+        "description": "Búsqueda web con query extraída por el LLM. Retorna 3 resultados con snippet y URL. Sin caché de resultados."
+      },
+      {
+        "step": 9,
+        "name": "LLM second inference",
+        "component": "Mistral API (mistral-large-latest)",
+        "latency_ms": { "p50": 1500, "p95": 5000 },
+        "bound": "io (gpu en proveedor)",
+        "is_bottleneck": true,
+        "description": "Segunda llamada al LLM con resultados de búsqueda como tool_result. Genera respuesta final en español con citas de fuentes."
+      },
+      {
+        "step": 10,
+        "name": "Firestore double write",
+        "component": "firestore_service.save_message() x2",
+        "latency_ms": { "p50": 160, "p95": 600 },
+        "bound": "io",
+        "is_bottleneck": false,
+        "description": "Dos escrituras atómicas vía ArrayUnion: mensaje usuario + respuesta asistente. Ejecutadas secuencialmente (no paralelo)."
+      }
+    ],
+    "ascii_diagram": [
+      "┌──────────────────────────────────────────────────────────────────────────────────┐",
+      "│                    FLUJO MÁS COSTOSO: POST /chat con búsqueda                   │",
+      "│                         Estimado p50: ~6.5s | p95: ~14s                         │",
+      "└──────────────────────────────────────────────────────────────────────────────────┘",
+      "",
+      "  CLIENTE (Browser)                                                                 ",
+      "      │                                                                             ",
+      "      │ POST /chat {message, session_id}                                            ",
+      "      │ Authorization: Bearer <firebase_token>                                      ",
+      "      ▼                                                                             ",
+      "  ┌───────────────────────────────────────┐                                        ",
+      "  │  FastAPI + uvicorn  [EP-02]            │  ~1ms                                 ",
+      "  │  Parsing JSON · Validación Pydantic    │                                        ",
+      "  └──────────────────┬────────────────────┘                                        ",
+      "                     │                                                             ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐     ┌──────────────────────────────┐  ",
+      "  │  HTTPBearer + require_role()           │────▶│  Google Firebase Auth API    │  ",
+      "  │  Extracción y verificación del token   │     │  (verificación ID token)     │  ",
+      "  └──────────────────┬────────────────────┘     └──────────────────────────────┘  ",
+      "                     │                              ~80-350ms  [DEP-03]           ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐     ┌──────────────────────────────┐  ",
+      "  │  get_session_history(uid)              │────▶│  Google Firestore            │  ",
+      "  │  Carga historial COMPLETO de mensajes  │     │  sessions/{uid}              │  ",
+      "  └──────────────────┬────────────────────┘     └──────────────────────────────┘  ",
+      "                     │                              ~50-200ms  [DEP-04] ⚠️ CRECE  ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐                                        ",
+      "  │  _to_langchain_history()               │  ~1ms                                ",
+      "  │  Conversión a HumanMessage/AIMessage   │                                        ",
+      "  └──────────────────┬────────────────────┘                                        ",
+      "                     │                                                             ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐     ┌──────────────────────────────┐  ",
+      "  │  AgentExecutor.invoke()  [1ª llamada]  │────▶│  Mistral AI API              │  ",
+      "  │  Input: historial + mensaje usuario    │     │  mistral-large-latest        │  ",
+      "  │  Output: tool_call → search_web        │     │  Temperature: 0.3            │  ",
+      "  └──────────────────┬────────────────────┘     └──────────────────────────────┘  ",
+      "                     │                              ~2000-6000ms [DEP-01] ⚠️ MAX  ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐     ┌──────────────────────────────┐  ",
+      "  │  TavilySearchResults tool              │────▶│  Tavily Search API           │  ",
+      "  │  Query extraída por el LLM             │     │  max_results=3               │  ",
+      "  │  Resultado: snippets + URLs            │     │  tvly-dev-* (rate limited)   │  ",
+      "  └──────────────────┬────────────────────┘     └──────────────────────────────┘  ",
+      "                     │                              ~1500-4000ms [DEP-02] ⚠️      ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐     ┌──────────────────────────────┐  ",
+      "  │  AgentExecutor.invoke()  [2ª llamada]  │────▶│  Mistral AI API              │  ",
+      "  │  Input: historial + resultados Tavily  │     │  mistral-large-latest        │  ",
+      "  │  Output: respuesta final con fuentes   │     │                              │  ",
+      "  └──────────────────┬────────────────────┘     └──────────────────────────────┘  ",
+      "                     │                              ~1500-5000ms [DEP-01] ⚠️ MAX  ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐     ┌──────────────────────────────┐  ",
+      "  │  save_message(uid, 'user', content)    │────▶│  Google Firestore            │  ",
+      "  │  save_message(uid, 'assistant', reply) │────▶│  sessions/{uid} ArrayUnion  │  ",
+      "  │  (ejecutadas secuencialmente)          │     │  (2 writes separados)        │  ",
+      "  └──────────────────┬────────────────────┘     └──────────────────────────────┘  ",
+      "                     │                              ~160-600ms [DEP-04]            ",
+      "                     ▼                                                             ",
+      "  ┌───────────────────────────────────────┐                                        ",
+      "  │  HTTP Response 200                     │                                        ",
+      "  │  {reply, session_id, tokens_used,      │                                        ",
+      "  │   used_search: true}                   │                                        ",
+      "  └───────────────────────────────────────┘                                        ",
+      "      │                                                                             ",
+      "      ▼                                                                             ",
+      "  CLIENTE (Browser)                                                                 ",
+      "",
+      "  LEYENDA DE CUELLOS DE BOTELLA:                                                   ",
+      "  ⚠️ MAX  = Domina la latencia total (contribuye >50% del tiempo)                  ",
+      "  ⚠️      = Cuello de botella secundario                                            ",
+      "  ⚠️ CRECE = Degrada con el tiempo (sin límite de crecimiento)                     "
+    ]
+  },
+
+  "bottleneck_summary": {
+    "ranked_by_impact": [
+      {
+        "rank": 1,
+        "id": "BN-01",
+        "name": "Mistral API latency (doble llamada en búsqueda)",
+        "dependency": "DEP-01",
+        "endpoints_affected": ["EP-02"],
+        "latency_contribution_pct": 65,
+        "mitigation_for_stress_test": "Mock Mistral con httpx responder. Testear con latencias: 500ms, 2s, 8s, 30s (timeout)"
+      },
+      {
+        "rank": 2,
+        "id": "BN-02",
+        "name": "Historial ilimitado en Firestore (crecimiento de documento)",
+        "dependency": "DEP-04",
+        "endpoints_affected": ["EP-02", "EP-03"],
+        "latency_contribution_pct": 15,
+        "mitigation_for_stress_test": "Crear sesiones con 0, 50, 200, 500, 1000 mensajes y medir latencia /chat y /history"
+      },
+      {
+        "rank": 3,
+        "id": "BN-03",
+        "name": "Tavily Search añade latencia variable no determinística",
+        "dependency": "DEP-02",
+        "endpoints_affected": ["EP-02"],
+        "latency_contribution_pct": 20,
+        "mitigation_for_stress_test": "Comparar p95 /chat con queries que fuerzan búsqueda vs queries que no la fuerzan"
+      },
+      {
+        "rank": 4,
+        "id": "BN-04",
+        "name": "Collection scan sin paginación en /admin/sessions",
+        "dependency": "DEP-04",
+        "endpoints_affected": ["EP-05"],
+        "latency_contribution_pct": 100,
+        "mitigation_for_stress_test": "Poblar 1k, 5k, 10k documentos y medir degradación lineal de GET /admin/sessions"
+      },
+      {
+        "rank": 5,
+        "id": "BN-05",
+        "name": "Sin caché de tokens Firebase (verificación en cada request)",
+        "dependency": "DEP-03",
+        "endpoints_affected": ["EP-02", "EP-03", "EP-04", "EP-05"],
+        "latency_contribution_pct": 5,
+        "mitigation_for_stress_test": "500 req/s con token válido, medir overhead de verificación en aislamiento"
+      }
+    ]
+  },
+
+  "stress_test_matrix": {
+    "scenarios": [
+      {
+        "id": "ST-01",
+        "name": "LLM Saturation",
+        "target": "BN-01",
+        "tool": "k6 / locust",
+        "config": {
+          "users": 50,
+          "duration": "5m",
+          "endpoint": "POST /chat",
+          "query_type": "sin búsqueda (factual, conocimiento estático)"
+        },
+        "success_criteria": "p95 < 8s, error_rate < 1%"
+      },
+      {
+        "id": "ST-02",
+        "name": "Search Saturation",
+        "target": "BN-01 + BN-03",
+        "tool": "k6 / locust",
+        "config": {
+          "users": 30,
+          "duration": "5m",
+          "endpoint": "POST /chat",
+          "query_type": "queries con fechas recientes para forzar Tavily"
+        },
+        "success_criteria": "p95 < 15s, error_rate < 2%"
+      },
+      {
+        "id": "ST-03",
+        "name": "History Growth Degradation",
+        "target": "BN-02",
+        "tool": "script Python custom",
+        "config": {
+          "sessions": [10, 50, 100, 200, 500, 1000],
+          "metric": "latencia /chat vs tamaño de historial"
+        },
+        "success_criteria": "degradación < 20% por cada 100 mensajes adicionales"
+      },
+      {
+        "id": "ST-04",
+        "name": "Admin Collection Scan",
+        "target": "BN-04",
+        "tool": "Firestore seeder + k6",
+        "config": {
+          "sessions_seeded": [100, 1000, 5000, 10000],
+          "endpoint": "GET /admin/sessions",
+          "concurrent_requests": 5
+        },
+        "success_criteria": "timeout < 30s hasta 10k sesiones"
+      },
+      {
+        "id": "ST-05",
+        "name": "Auth Throughput",
+        "target": "BN-05",
+        "tool": "k6",
+        "config": {
+          "rps": [50, 100, 200, 500],
+          "endpoint": "GET /health vs GET /history (con auth)",
+          "metric": "overhead de verificación Firebase"
+        },
+        "success_criteria": "auth overhead < 500ms en p95 bajo 200 rps"
+      },
+      {
+        "id": "ST-06",
+        "name": "Concurrent Firestore Writes",
+        "target": "BN-02",
+        "tool": "Python asyncio custom",
+        "config": {
+          "concurrent_users": [10, 50, 100],
+          "same_session": false,
+          "writes_per_user": 10
+        },
+        "success_criteria": "0 mensajes perdidos, 0 race conditions detectadas"
+      }
+    ]
+  }
+}

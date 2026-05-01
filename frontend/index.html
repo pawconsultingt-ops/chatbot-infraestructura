@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot Infraestructura — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .card h1 {
+      font-size: 1.5rem;
+      color: #1a1a1a;
+      margin-bottom: 0.25rem;
+      text-align: center;
+    }
+
+    .card .subtitle {
+      font-size: 0.875rem;
+      color: #6b7280;
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      color: #374151;
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+    }
+
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.6rem 0.85rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: Arial, sans-serif;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 1rem;
+    }
+
+    input[type="email"]:focus,
+    input[type="password"]:focus {
+      border-color: #4f46e5;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 0.7rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: Arial, sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-primary {
+      background: #4f46e5;
+      color: #ffffff;
+      margin-bottom: 0.6rem;
+    }
+
+    .btn-primary:hover:not(:disabled) { background: #4338ca; }
+
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      margin-bottom: 1.25rem;
+    }
+
+    .btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .divider span {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      white-space: nowrap;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #e5e7eb;
+    }
+
+    .btn-google {
+      background: #ffffff;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-bottom: 0;
+    }
+
+    .btn-google:hover:not(:disabled) { background: #f9fafb; }
+
+    .btn-google svg {
+      flex-shrink: 0;
+    }
+
+    .error-msg {
+      margin-top: 1rem;
+      padding: 0.65rem 0.85rem;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      color: #b91c1c;
+      font-size: 0.875rem;
+      display: none;
+    }
+
+    .success-msg {
+      margin-top: 1rem;
+      padding: 0.65rem 0.85rem;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 8px;
+      color: #166534;
+      font-size: 0.875rem;
+      display: none;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Chatbot Infraestructura</h1>
+  <p class="subtitle">Inicia sesión para continuar</p>
+
+  <form id="authForm" novalidate>
+    <label for="email">Correo electrónico</label>
+    <input type="email" id="email" placeholder="tu@email.com" required autocomplete="email" />
+
+    <label for="password">Contraseña</label>
+    <input type="password" id="password" placeholder="Mínimo 6 caracteres" required autocomplete="current-password" />
+
+    <button type="submit" class="btn btn-primary" id="btnLogin">
+      Iniciar sesión
+    </button>
+
+    <button type="button" class="btn btn-secondary" id="btnRegister">
+      Registrarse
+    </button>
+  </form>
+
+  <div class="divider"><span>o</span></div>
+
+  <button type="button" class="btn btn-google" id="btnGoogle">
+    <!-- Google "G" logo -->
+    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+      <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332Z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+    </svg>
+    Continuar con Google
+  </button>
+
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="success-msg" id="successMsg"></div>
+</div>
+
+<!-- Firebase SDK v10 (modular, ESM from CDN) -->
+<script type="module">
+  import { initializeApp }                         from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signInWithPopup,
+    GoogleAuthProvider,
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  // -------------------------------------------------------------------------
+  // Firebase config — replace with your own if you fork this project
+  // -------------------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey:            "AIzaSyBkDpQUVlTM522gYdUjdINsF1LtifNR6nA",
+    authDomain:        "chatbotapp-59c2b.firebaseapp.com",
+    projectId:         "chatbotapp-59c2b",
+    storageBucket:     "chatbotapp-59c2b.firebasestorage.app",
+    messagingSenderId: "1031895725223",
+    appId:             "1:1031895725223:web:9394e3cc61b1600f82d782",
+    measurementId:     "G-LP8T0M4CTM",
+  };
+
+  // -------------------------------------------------------------------------
+  // Initialise
+  // -------------------------------------------------------------------------
+  const app      = initializeApp(firebaseConfig);
+  const auth     = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  // -------------------------------------------------------------------------
+  // DOM refs
+  // -------------------------------------------------------------------------
+  const form        = document.getElementById("authForm");
+  const emailInput  = document.getElementById("email");
+  const passInput   = document.getElementById("password");
+  const btnLogin    = document.getElementById("btnLogin");
+  const btnRegister = document.getElementById("btnRegister");
+  const btnGoogle   = document.getElementById("btnGoogle");
+  const errorDiv    = document.getElementById("errorMsg");
+  const successDiv  = document.getElementById("successMsg");
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+  function showError(msg) {
+    errorDiv.textContent  = msg;
+    errorDiv.style.display  = "block";
+    successDiv.style.display = "none";
+  }
+
+  function showSuccess(msg) {
+    successDiv.textContent  = msg;
+    successDiv.style.display  = "block";
+    errorDiv.style.display = "none";
+  }
+
+  function clearMessages() {
+    errorDiv.style.display   = "none";
+    successDiv.style.display = "none";
+  }
+
+  function setLoading(loading) {
+    btnLogin.disabled    = loading;
+    btnRegister.disabled = loading;
+    btnGoogle.disabled   = loading;
+    btnLogin.innerHTML   = loading
+      ? '<span class="spinner"></span>Cargando…'
+      : "Iniciar sesión";
+  }
+
+  function friendlyError(code) {
+    const map = {
+      "auth/invalid-email":            "El correo electrónico no es válido.",
+      "auth/user-not-found":           "No existe una cuenta con ese correo.",
+      "auth/wrong-password":           "Contraseña incorrecta.",
+      "auth/invalid-credential":       "Credenciales incorrectas. Verifica tu correo y contraseña.",
+      "auth/email-already-in-use":     "Ya existe una cuenta con ese correo.",
+      "auth/weak-password":            "La contraseña debe tener al menos 6 caracteres.",
+      "auth/popup-closed-by-user":     "Ventana de Google cerrada. Inténtalo de nuevo.",
+      "auth/network-request-failed":   "Error de red. Verifica tu conexión.",
+      "auth/too-many-requests":        "Demasiados intentos fallidos. Espera unos minutos.",
+    };
+    return map[code] ?? `Error inesperado (${code}). Inténtalo de nuevo.`;
+  }
+
+  async function handleAuthSuccess(userCredential) {
+    const token = await userCredential.user.getIdToken();
+    sessionStorage.setItem("firebase_token", token);
+    sessionStorage.setItem("firebase_uid",   userCredential.user.uid);
+    sessionStorage.setItem("firebase_email", userCredential.user.email ?? "");
+    showSuccess("Autenticación exitosa. Redirigiendo…");
+    setTimeout(() => { window.location.href = "chat.html"; }, 800);
+  }
+
+  // -------------------------------------------------------------------------
+  // Redirect if already authenticated
+  // -------------------------------------------------------------------------
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const token = await user.getIdToken(/* forceRefresh */ false);
+      sessionStorage.setItem("firebase_token", token);
+      sessionStorage.setItem("firebase_uid",   user.uid);
+      sessionStorage.setItem("firebase_email", user.email ?? "");
+      window.location.href = "chat.html";
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Login
+  // -------------------------------------------------------------------------
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearMessages();
+    const email    = emailInput.value.trim();
+    const password = passInput.value;
+
+    if (!email || !password) {
+      showError("Por favor completa todos los campos.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      await handleAuthSuccess(credential);
+    } catch (err) {
+      showError(friendlyError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Register
+  // -------------------------------------------------------------------------
+  btnRegister.addEventListener("click", async () => {
+    clearMessages();
+    const email    = emailInput.value.trim();
+    const password = passInput.value;
+
+    if (!email || !password) {
+      showError("Por favor completa todos los campos para registrarte.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      showSuccess("Cuenta creada. Iniciando sesión…");
+      await handleAuthSuccess(credential);
+    } catch (err) {
+      showError(friendlyError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Google sign-in
+  // -------------------------------------------------------------------------
+  btnGoogle.addEventListener("click", async () => {
+    clearMessages();
+    setLoading(true);
+    try {
+      const credential = await signInWithPopup(auth, provider);
+      await handleAuthSuccess(credential);
+    } catch (err) {
+      showError(friendlyError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+ts,endpoint,method,status_code,latency_e2e_ms,inference_ms,tokens_in,tokens_out,used_search,req_bytes,resp_bytes,uid,ram_used_mb,cpu_avg_pct
+2026-05-01T02:26:18.795423+00:00,/chat,OPTIONS,200,3.531,0.0,0,0,False,0,2,anonymous,10865.3,6.5
+2026-05-01T02:27:05.234690+00:00,/history,OPTIONS,200,0.205,0.0,0,0,False,0,2,anonymous,11056.9,2.8
+2026-05-01T02:27:05.555846+00:00,/history,GET,200,319.98,0.0,0,0,False,0,34,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11056.9,2.8
+2026-05-01T02:27:12.774191+00:00,/chat,POST,200,53970.855,50632.215,0,0,False,76,10269,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11071.5,4.0
+2026-05-01T02:27:34.293534+00:00,/history,GET,200,211.908,0.0,0,0,False,0,34,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11123.4,3.5
+2026-05-01T02:27:55.688361+00:00,/history,OPTIONS,200,0.219,0.0,0,0,False,0,2,anonymous,11151.7,3.6
+2026-05-01T02:27:55.694929+00:00,/history,GET,403,3.591,0.0,0,0,False,0,152,anonymous,11151.7,3.6
+2026-05-01T02:35:04.784149+00:00,/chat,POST,200,32714.858,30434.569,0,0,False,30,6784,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11389.8,6.4

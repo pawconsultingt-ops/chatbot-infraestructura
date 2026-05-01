@@ -1,0 +1,6 @@
+ts,endpoint,method,status_code,latency_e2e_ms,inference_ms,tokens_in,tokens_out,used_search,req_bytes,resp_bytes,uid,ram_used_mb,cpu_avg_pct
+2026-05-01T01:23:43.706589+00:00,/,GET,404,1.506,0.0,0,0,False,0,22,anonymous,11896.9,6.4
+2026-05-01T01:23:43.752817+00:00,/favicon.ico,GET,404,0.537,0.0,0,0,False,0,22,anonymous,12019.1,6.7
+2026-05-01T01:29:17.904991+00:00,/health,GET,200,0.791,0.0,0,0,False,0,566,anonymous,11881.8,7.3
+2026-05-01T01:38:51.712178+00:00,/chat,OPTIONS,200,0.242,0.0,0,0,False,0,2,anonymous,11147.8,6.4
+2026-05-01T01:39:16.658153+00:00,/chat,POST,200,24942.861,22507.364,0,0,False,73,5544,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11133.8,6.4
