@@ -32,32 +32,14 @@ _db: firestore.Client | None = None
 def _get_db() -> firestore.Client:
     """Return a shared Firestore client, initialising it on first call.
 
-    Priority:
-      1. ``GOOGLE_APPLICATION_CREDENTIALS_JSON`` — JSON string (Railway/production).
-      2. ``GOOGLE_APPLICATION_CREDENTIALS`` — file path (local development).
-      3. Application Default Credentials as fallback.
+    Uses the credentials file referenced by ``GOOGLE_APPLICATION_CREDENTIALS``.
 
     Returns:
         A :class:`google.cloud.firestore.Client` instance.
     """
     global _db
     if _db is None:
-        import json
-        from google.oauth2 import service_account
-
-        creds_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-        if creds_json:
-            # Production (Railway): build credentials from JSON env var
-            creds_dict = json.loads(creds_json)
-            google_creds = service_account.Credentials.from_service_account_info(
-                creds_dict,
-                scopes=["https://www.googleapis.com/auth/cloud-platform"],
-            )
-            project_id = creds_dict.get("project_id") or os.getenv("FIREBASE_PROJECT_ID")
-            _db = firestore.Client(credentials=google_creds, project=project_id)
-        else:
-            # Local development: use file path or ADC
-            _db = firestore.Client()
+        _db = firestore.Client()
     return _db
 
 
