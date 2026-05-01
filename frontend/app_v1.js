@@ -38,8 +38,8 @@ const auth        = getAuth(firebaseApp);
 // ---------------------------------------------------------------------------
 
 //const API_URL = "http://localhost:8001";
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
-
+//const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+const API_URL = "https://chatbot-infraestructura-production.up.railway.app";
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -334,20 +334,6 @@ function autoResizeTextarea() {
 }
 
 // ---------------------------------------------------------------------------
-// Auto-register (assigns assistant_user role on first login)
-// ---------------------------------------------------------------------------
-async function autoRegister(token) {
-  try {
-    await fetch(`${API_URL}/register`, {
-      method:  "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  } catch (err) {
-    console.warn("[autoRegister] Could not reach /register:", err);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Main init
 // ---------------------------------------------------------------------------
 async function init() {
@@ -369,14 +355,7 @@ async function init() {
   const token = await currentUser.getIdToken(true);
   sessionStorage.setItem("firebase_token", token);
 
-  // Auto-assign 'assistant_user' role if user has none (first-time login)
-  await autoRegister(token);
-
-  // Force-refresh token so the new role claim is included
-  const freshToken = await currentUser.getIdToken(true);
-  sessionStorage.setItem("firebase_token", freshToken);
-
-  const payload = decodeJwtPayload(freshToken);
+  const payload = decodeJwtPayload(token);
   userRole = payload.role ?? null;
 
   userEmailEl.textContent = currentUser.email ?? currentUser.uid;
@@ -384,7 +363,7 @@ async function init() {
 
   if (userRole === "assistant_user") btnClear.style.display = "block";
 
-  await loadHistory(freshToken);
+  await loadHistory(token);
 
   // Watch for real sign-out events AFTER init is complete.
   // Because getInitialAuthState already consumed the first emission,

@@ -570,7 +570,7 @@ HR()
 # ── 3. ESCENARIOS ─────────────────────────────────────────────────────────────
 H2("3. Escenarios de Infraestructura")
 
-for scen_name, scen in SCENARIOS.items():
+for scen_name, scen in plan["scenarios"].items():
     emoji = {"conservative": "🛡️", "optimized": "⚖️", "aggressive": "⚡"}[scen_name]
     label = {"conservative": "CONSERVADOR", "optimized": "OPTIMIZADO", "aggressive": "AGRESIVO"}[scen_name]
     H3(f"3.{list(SCENARIOS).index(scen_name)+1} {emoji} {label}")
@@ -615,7 +615,7 @@ A("  ✗ NO usar 100% Spot → evicción durante conversación activa = UX terri
 A("  ✗ NO usar 100% On-Demand → costo innecesariamente alto en carga base")
 A("")
 A("Ahorro vs full On-Demand (escenario optimizado, AWS):")
-opt_aws_costs = SCENARIOS["optimized"]["costs"]["aws"]
+opt_aws_costs = plan["scenarios"]["optimized"]["costs"]["aws"]
 A(f"  On-Demand total: ~{fmt_usd(opt_aws_costs['grand_total'] / 0.70 * 1.0)}/mes")
 A(f"  Optimizado:       {fmt_usd(opt_aws_costs['grand_total'])}/mes")
 A("```")
@@ -631,7 +631,7 @@ A("> - Trade-off: primera request en el día puede tardar +30s por cold start de
 H3("4.3 Alertas de presupuesto")
 A("| Umbral | Acción | Canal |")
 A("|---|---|---|")
-optimized_total = SCENARIOS["optimized"]["costs"]["aws"]["grand_total"]
+optimized_total = plan["scenarios"]["optimized"]["costs"]["aws"]["grand_total"]
 A(f"| {fmt_usd(optimized_total*0.5)}/mes (50%) | Info — revisar tendencia | Email |")
 A(f"| {fmt_usd(optimized_total*0.8)}/mes (80%) | Warning — investigar spike | Slack + Email |")
 A(f"| {fmt_usd(optimized_total*1.0)}/mes (100%) | Critical — alertar equipo | PagerDuty |")
@@ -666,17 +666,17 @@ for field, label in [
     ("safety_margin_pct", "Margen de seguridad"),
     ("risk", "Riesgo"),
 ]:
-    row = [SCENARIOS[s][field] for s in ["conservative", "optimized", "aggressive"]]
+    row = [plan["scenarios"][s][field] for s in ["conservative", "optimized", "aggressive"]]
     A(f"| {label} | {row[0]} | {row[1]} | {row[2]} |")
 
 A("| Costo/mes AWS | "
-  + " | ".join(fmt_usd(SCENARIOS[s]["costs"]["aws"]["grand_total"]) for s in SCENARIOS)
+  + " | ".join(fmt_usd(plan["scenarios"][s]["costs"]["aws"]["grand_total"]) for s in plan["scenarios"])
   + " |")
 A("| Costo/mes GCP | "
-  + " | ".join(fmt_usd(SCENARIOS[s]["costs"]["gcp"]["grand_total"]) for s in SCENARIOS)
+  + " | ".join(fmt_usd(plan["scenarios"][s]["costs"]["gcp"]["grand_total"]) for s in plan["scenarios"])
   + " |")
 A("| Costo/mes Azure | "
-  + " | ".join(fmt_usd(SCENARIOS[s]["costs"]["azure"]["grand_total"]) for s in SCENARIOS)
+  + " | ".join(fmt_usd(plan["scenarios"][s]["costs"]["azure"]["grand_total"]) for s in plan["scenarios"])
   + " |")
 A("")
 

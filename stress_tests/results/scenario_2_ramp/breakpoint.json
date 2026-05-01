@@ -1,0 +1,9 @@
+{
+  "user_count": 100,
+  "p95_ms": 1200.0,
+  "baseline_p95_ms": 60000.0,
+  "p95_ratio": 0.02,
+  "error_rate_pct": 0.0,
+  "trigger_reason": "max_users_reached",
+  "detected_at": "2026-05-01T02:17:00+00:00"
+}

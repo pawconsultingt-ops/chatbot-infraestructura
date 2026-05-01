@@ -1,7 +1,7 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-  Scenario 2 — RAMP: 1→100 users (+5 every 60 s), auto-stop at breakpoint.
+  Scenario 2 - RAMP: 1->100 users (+5 every 60 s), auto-stop at breakpoint.
 
 .DESCRIPTION
   Reads baseline p95 from results/scenario_1_baseline/baseline.json.
@@ -9,12 +9,12 @@
     - p95 > 3× baseline  OR
     - Error rate > 5%    OR
     - Max users (100) reached
-  Writes breakpoint.json — used by Scenario 3 to set target concurrency.
+  Writes breakpoint.json - used by Scenario 3 to set target concurrency.
 #>
 
 param(
     [string]$Token        = $env:STRESS_AUTH_TOKEN,
-    [string]$Host         = "http://localhost:8001",
+    [string]$TargetHost         = "http://localhost:8001",
     [int]   $StepUsers    = 5,
     [int]   $StepDuration = 60,
     [int]   $MaxUsers     = 100,
@@ -48,21 +48,21 @@ if (-not $Token) {
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  SCENARIO 2 — RAMP (find the breaking point)" -ForegroundColor Cyan
+Write-Host "  SCENARIO 2 - RAMP (find the breaking point)" -ForegroundColor Cyan
 Write-Host "  Shape: +$StepUsers users every ${StepDuration}s, max $MaxUsers" -ForegroundColor Cyan
 Write-Host "  Stop: p95 > ${LatencyMult}x baseline OR error > $($ErrorThresh*100)%" -ForegroundColor Cyan
-Write-Host "  Target: $Host" -ForegroundColor Cyan
+Write-Host "  Target: $TargetHost" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # ── environment ────────────────────────────────────────────────────────────────
 $env:STRESS_AUTH_TOKEN    = $Token
-$env:TARGET_HOST          = $Host
+$env:TARGET_HOST          = $TargetHost
 $env:RAMP_STEP_USERS      = $StepUsers
 $env:RAMP_STEP_DURATION   = $StepDuration
 $env:RAMP_MAX_USERS       = $MaxUsers
-$env:RAMP_LATENCY_MULT    = $LatencyMult
-$env:RAMP_ERROR_THRESH    = $ErrorThresh
+$env:RAMP_LATENCY_MULT    = $LatencyMult.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$env:RAMP_ERROR_THRESH    = $ErrorThresh.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 
 # ── sys_monitor ────────────────────────────────────────────────────────────────
 Write-Host "[1/4] Starting sys_monitor..." -ForegroundColor Yellow
@@ -70,21 +70,21 @@ $MonArgs = @(
     (Join-Path $SharedDir "sys_monitor.py"),
     "--output", $ResultsDir,
     "--interval", $MonInterval,
-    "--health-url", "$Host/health"
+    "--health-url", "$TargetHost/health"
 )
-$MonProc = Start-Process python -ArgumentList $MonArgs -PassThru -NoNewWindow
+$MonProc = Start-Process "C:\Users\Usuario\AppData\Local\Programs\Python\Python313\python.exe" -ArgumentList $MonArgs -PassThru -NoNewWindow
 Write-Host "      PID: $($MonProc.Id)"
 Start-Sleep -Seconds 2
 
 # ── locust ─────────────────────────────────────────────────────────────────────
-Write-Host "[2/4] Running Locust (ramp shape active — will auto-stop)..." -ForegroundColor Yellow
+Write-Host "[2/4] Running Locust (ramp shape active - will auto-stop)..." -ForegroundColor Yellow
 
 # Estimate max runtime: all steps + extra buffer
 $MaxRuntime = ($MaxUsers / $StepUsers) * $StepDuration + 120
 
 $LocustArgs = @(
     "-f", $LocustFile,
-    "--host", $Host,
+    "--host", $TargetHost,
     "--run-time", "${MaxRuntime}s",
     "--csv", (Join-Path $ResultsDir "locust"),
     "--html", (Join-Path $ResultsDir "report.html"),
@@ -107,7 +107,7 @@ if (-not $MonProc.HasExited) { $MonProc | Stop-Process -Force }
 
 # ── post-process ───────────────────────────────────────────────────────────────
 Write-Host "[4/4] Running post_process..." -ForegroundColor Yellow
-python (Join-Path $SharedDir "post_process.py") --results $ResultsDir --bucket 30
+& "C:\Users\Usuario\AppData\Local\Programs\Python\Python313\python.exe" (Join-Path $SharedDir "post_process.py") --results $ResultsDir --bucket 30
 
 # ── show breakpoint ────────────────────────────────────────────────────────────
 $BpFile = Join-Path $ResultsDir "breakpoint.json"

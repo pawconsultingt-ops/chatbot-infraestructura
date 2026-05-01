@@ -1,0 +1,2 @@
+ts,endpoint,method,status_code,latency_e2e_ms,inference_ms,tokens_in,tokens_out,used_search,req_bytes,resp_bytes,uid,ram_used_mb,cpu_avg_pct
+2026-05-01T07:12:39.022028+00:00,/health,GET,200,1.471,0.0,0,0,False,0,554,anonymous,12012.1,6.8

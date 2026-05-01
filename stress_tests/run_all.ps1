@@ -1,12 +1,12 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Run all three stress scenarios in sequence.
 
 .DESCRIPTION
-  1. Scenario 1 (Baseline)   → establishes p95 floor
-  2. Scenario 2 (Ramp)       → finds breaking point
-  3. Scenario 3 (Saturation) → 30-min stability at 80% of breaking point
+  1. Scenario 1 (Baseline)   -> establishes p95 floor
+  2. Scenario 2 (Ramp)       -> finds breaking point
+  3. Scenario 3 (Saturation) -> 30-min stability at 80% of breaking point
 
 .EXAMPLE
   # Set token once and run everything:
@@ -19,7 +19,7 @@
 
 param(
     [string]$Token       = $env:STRESS_AUTH_TOKEN,
-    [string]$Host        = "http://localhost:8001",
+    [string]$TargetHost        = "http://localhost:8001",
     [switch]$Force,         # skip confirmation prompts
     [switch]$SkipS1,        # skip Scenario 1 (use existing baseline.json)
     [switch]$SkipS2,        # skip Scenario 2 (use existing breakpoint.json)
@@ -38,8 +38,8 @@ function Confirm-Step([string]$name) {
 
 Write-Host ""
 Write-Host "############################################################" -ForegroundColor Magenta
-Write-Host "#  CHATBOT STRESS TEST SUITE — FULL RUN                   #" -ForegroundColor Magenta
-Write-Host "#  Host: $Host" -ForegroundColor Magenta
+Write-Host "#  CHATBOT STRESS TEST SUITE - FULL RUN                   #" -ForegroundColor Magenta
+Write-Host "#  Host: $TargetHost" -ForegroundColor Magenta
 Write-Host "############################################################" -ForegroundColor Magenta
 Write-Host ""
 
@@ -47,7 +47,7 @@ if (-not $Token) {
     Write-Error "STRESS_AUTH_TOKEN is not set. Export it before running:`n  `$env:STRESS_AUTH_TOKEN = `"<firebase_id_token>`""
 }
 
-$commonArgs = @("-Token", $Token, "-Host", $Host)
+$commonArgs = @("-Token", $Token, "-Host", $TargetHost)
 if ($WebUI) { $commonArgs += "-WebUI" }
 
 $t0 = Get-Date

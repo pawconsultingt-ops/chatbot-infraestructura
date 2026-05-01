@@ -243,9 +243,12 @@ def consolidate(results_dir: Path, bucket_size: int = 10) -> Path:
         rpss = [r["rps"]    for r in rows if r["rps"]]
         errs = [r["error_rate_pct"] for r in rows]
         print("\n  === SUMMARY ===")
-        print(f"  p95 latency  — min: {min(p95s):.0f}ms  max: {max(p95s):.0f}ms  avg: {statistics.mean(p95s):.0f}ms")
-        print(f"  throughput   — max: {max(rpss):.2f} rps  avg: {statistics.mean(rpss):.2f} rps")
-        print(f"  error rate   — max: {max(errs):.2f}%  avg: {statistics.mean(errs):.2f}%")
+        if p95s:
+            print(f"  p95 latency  - min: {min(p95s):.0f}ms  max: {max(p95s):.0f}ms  avg: {statistics.mean(p95s):.0f}ms")
+        if rpss:
+            print(f"  throughput   - max: {max(rpss):.2f} rps  avg: {statistics.mean(rpss):.2f} rps")
+        if errs:
+            print(f"  error rate   - max: {max(errs):.2f}%  avg: {statistics.mean(errs):.2f}%")
         if any(r["above_breakpoint"] for r in rows):
             bp = next(r for r in rows if r["above_breakpoint"])
             print(f"  breakpoint   — {bp['user_count']} users  p95={bp['p95_ms']:.0f}ms ({bp['p95_vs_baseline']:.1f}x baseline)")

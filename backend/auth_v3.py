@@ -20,10 +20,13 @@ def _ensure_firebase() -> None:
 
     Uses ``firebase_admin.get_app()`` to check for the default app
     (more reliable than inspecting ``firebase_admin._apps`` directly).
-    Reads the service-account path from ``GOOGLE_APPLICATION_CREDENTIALS``.
+
+    Priority:
+      1. ``GOOGLE_APPLICATION_CREDENTIALS_JSON`` — JSON string (Railway/production).
+      2. ``GOOGLE_APPLICATION_CREDENTIALS`` — file path (local development).
 
     Raises:
-        HTTPException 503: If the credentials file is missing or invalid.
+        HTTPException 503: If the credentials are missing or invalid.
     """
     # Fast path: default app already exists
     try:
@@ -32,49 +35,32 @@ def _ensure_firebase() -> None:
     except ValueError:
         pass  # Default app not yet initialised — proceed below
 
-    cred_path = os.getenv(
-        "GOOGLE_APPLICATION_CREDENTIALS",
-        "../service-account.json",
-    )
-
     try:
-        cred = credentials.Certificate(cred_path)
+        creds_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        if creds_json:
+            # Production (Railway): load from env var JSON string
+            import json
+            creds_dict = json.loads(creds_json)
+            cred = credentials.Certificate(creds_dict)
+        else:
+            # Local development: load from file path
+            cred_path = os.getenv(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "../service-account.json",
+            )
+            cred = credentials.Certificate(cred_path)
+
         firebase_admin.initialize_app(cred)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
                 f"Firebase no está configurado correctamente. "
-                f"Descarga el service-account.json desde Firebase Console y "
-                f"colócalo en la ruta indicada por GOOGLE_APPLICATION_CREDENTIALS. "
+                f"En producción define GOOGLE_APPLICATION_CREDENTIALS_JSON. "
+                f"En local coloca service-account.json en la ruta indicada. "
                 f"Detalle: {exc}"
             ),
         ) from exc
-
-
-def ensure_default_role(uid: str, default_role: str = "assistant_user") -> str:
-    """Assign a default role to a user if they have none.
-
-    Called by the /register endpoint on first login. If the user already has
-    a role claim, it is returned unchanged. Otherwise, ``default_role`` is
-    assigned via Firebase custom claims.
-
-    Args:
-        uid:          Firebase user identifier.
-        default_role: Role to assign if none exists (default: 'assistant_user').
-
-    Returns:
-        The user's active role string after the operation.
-    """
-    _ensure_firebase()
-    user_record = fb_auth.get_user(uid)
-    existing_role = (user_record.custom_claims or {}).get("role")
-
-    if existing_role:
-        return existing_role  # already has a role — do nothing
-
-    fb_auth.set_custom_user_claims(uid, {"role": default_role})
-    return default_role
 
 
 # ---------------------------------------------------------------------------

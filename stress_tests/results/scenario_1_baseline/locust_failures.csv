@@ -1,0 +1,3 @@
+Method,Name,Error,Occurrences
+POST,/chat [extreme],CatchResponseError('HTTP 422'),2
+POST,/chat [complex],CatchResponseError('HTTP 422'),4

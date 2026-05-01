@@ -1,0 +1,359 @@
+{
+  "meta": {
+    "generated_at": "2026-05-01T05:42:34.910691+00:00",
+    "data_sources": [
+      "service_profile.json (architectural latency estimates)",
+      "/health endpoint (8 requests observed)",
+      "AWS/GCP/Azure ~2025 list pricing"
+    ],
+    "warning": "Stress test results directories are empty — no Locust runs executed. Latency figures are architectural estimates, not measured under load. Run stress_tests/run_all.ps1 and regenerate this plan for data-driven numbers."
+  },
+  "business_parameters": {
+    "peak_concurrent_users": 50,
+    "max_acceptable_p95_ms": 10000,
+    "monthly_growth_pct": 20,
+    "availability_target_pct": 99.9,
+    "planning_horizon_months": 12,
+    "avg_requests_per_user_per_day": 15,
+    "monthly_requests": 22500
+  },
+  "performance_profile": {
+    "observed": {
+      "total_requests_sampled": 8,
+      "p50_ms": 1.36,
+      "p95_ms": 18228,
+      "note": "p50 dominated by fast /health calls; p95 reflects /chat + Tavily worst-case",
+      "ram_used_mb": 11882,
+      "ram_total_mb": 16069,
+      "cpu_cores": 16,
+      "cpu_avg_pct_idle": 7.3,
+      "gpu_available": false
+    },
+    "architectural_estimates": {
+      "chat_p50_no_search_ms": 3500,
+      "chat_p95_no_search_ms": 8000,
+      "chat_p50_with_search_ms": 6500,
+      "chat_p95_with_search_ms": 14000,
+      "search_activation_rate": 0.4,
+      "weighted_p50_ms": 4700,
+      "weighted_p95_ms": 10400
+    },
+    "bottleneck_classification": {
+      "primary": "I/O — Mistral API latency (65% of total response time)",
+      "secondary": "I/O — Tavily Search (20% when activated)",
+      "tertiary": "I/O — Firestore read (growing with session history)",
+      "cpu_bound": false,
+      "gpu_bound": false,
+      "memory_bound": false,
+      "network_bound": true
+    },
+    "capacity_per_replica": {
+      "thread_pool_size": 40,
+      "max_rps_theoretical": 3.85,
+      "max_rps_practical": 2.89,
+      "concurrent_requests_at_capacity": 40
+    },
+    "tokens_per_second": {
+      "avg_output_tok_per_request": 800,
+      "daily_total_tokens": 1725000,
+      "avg_tps_at_peak": 1619.2,
+      "max_sustained_tps_per_replica": 2310.0
+    }
+  },
+  "production_projection": {
+    "recommended_replicas": 2,
+    "min_replicas_for_availability": 2,
+    "replicas_for_peak_rps": 1,
+    "peak_rps": 2.024,
+    "instance_specification": {
+      "vcpu": 2,
+      "ram_gb": 4,
+      "storage_gb": 20,
+      "gpu": "none (I/O-bound workload; GPU inference runs on Mistral API servers)",
+      "network": "1 Gbps standard",
+      "rationale": "2 vCPU sufficient — FastAPI + Python overhead is < 5% CPU under load. 4 GB RAM = 40 concurrent threads × ~50 MB/request + 500 MB Python baseline. No local GPU needed — LLM inference delegated to Mistral API."
+    },
+    "autoscaling": {
+      "metric_primary": "custom: active_sync_threads_pct > 70%",
+      "metric_secondary": "request_queue_depth > 5",
+      "metric_tertiary": "p95_latency_ms > 8000",
+      "note": "CPU-based autoscaling is WRONG for this workload (I/O-bound). Scale on thread saturation or latency degradation. Use Locust scenario 2 breakpoint to calibrate exact thresholds.",
+      "scale_out_cooldown_s": 60,
+      "scale_in_cooldown_s": 300,
+      "warm_up_period_s": 30
+    },
+    "growth_forecast": {
+      "1": {
+        "users": 60,
+        "replicas_needed": 2
+      },
+      "2": {
+        "users": 72,
+        "replicas_needed": 2
+      },
+      "3": {
+        "users": 86,
+        "replicas_needed": 2
+      },
+      "6": {
+        "users": 149,
+        "replicas_needed": 3
+      },
+      "9": {
+        "users": 258,
+        "replicas_needed": 4
+      },
+      "12": {
+        "users": 446,
+        "replicas_needed": 6
+      }
+    }
+  },
+  "scenarios": {
+    "conservative": {
+      "replicas": 3,
+      "pricing_model": "on_demand",
+      "autoscale_min": 3,
+      "autoscale_max": 12,
+      "autoscale_trigger": "p95_latency > 6000ms OR active_threads > 70%",
+      "safety_margin_pct": 100,
+      "risk": "low",
+      "rationale": "N+2 redundancy, all on-demand, scale at 70% capacity threshold",
+      "costs": {
+        "aws": {
+          "compute_monthly": 182.22,
+          "lb_monthly": 18.0,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 208.22,
+          "grand_total": 473.72,
+          "instance_type": "t3.large",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        },
+        "gcp": {
+          "compute_monthly": 146.73,
+          "lb_monthly": 18.25,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 172.98,
+          "grand_total": 438.48,
+          "instance_type": "e2-standard-2",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        },
+        "azure": {
+          "compute_monthly": 210.24,
+          "lb_monthly": 16.0,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 234.24,
+          "grand_total": 499.74,
+          "instance_type": "D2s_v5",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        }
+      }
+    },
+    "optimized": {
+      "replicas": 2,
+      "pricing_model": "70% reserved_1yr + 30% on_demand",
+      "autoscale_min": 2,
+      "autoscale_max": 8,
+      "autoscale_trigger": "p95_latency > 7500ms OR active_threads > 75%",
+      "safety_margin_pct": 50,
+      "risk": "medium",
+      "rationale": "N+1 redundancy, mixed pricing, scale at 75% capacity",
+      "costs": {
+        "aws": {
+          "compute_monthly": 89.18,
+          "lb_monthly": 18.0,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 115.18,
+          "grand_total": 380.68,
+          "instance_type": "t3.large",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        },
+        "gcp": {
+          "compute_monthly": 75.22,
+          "lb_monthly": 18.25,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 101.47,
+          "grand_total": 366.97,
+          "instance_type": "e2-standard-2",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        },
+        "azure": {
+          "compute_monthly": 100.92,
+          "lb_monthly": 16.0,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 124.92,
+          "grand_total": 390.42,
+          "instance_type": "D2s_v5",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        }
+      }
+    },
+    "aggressive": {
+      "replicas": 2,
+      "pricing_model": "50% spot + 50% on_demand",
+      "autoscale_min": 2,
+      "autoscale_max": 10,
+      "autoscale_trigger": "p95_latency > 8500ms OR active_threads > 85%",
+      "safety_margin_pct": 10,
+      "risk": "high",
+      "rationale": "Minimum viable replicas, spot instances (eviction risk), late scaling trigger",
+      "costs": {
+        "aws": {
+          "compute_monthly": 69.85,
+          "lb_monthly": 18.0,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 95.85,
+          "grand_total": 361.35,
+          "instance_type": "t3.large",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        },
+        "gcp": {
+          "compute_monthly": 56.25,
+          "lb_monthly": 18.25,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 82.5,
+          "grand_total": 348.0,
+          "instance_type": "e2-standard-2",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        },
+        "azure": {
+          "compute_monthly": 84.1,
+          "lb_monthly": 16.0,
+          "firebase_monthly": 8.0,
+          "mistral_monthly": 175.5,
+          "tavily_monthly": 90.0,
+          "infra_subtotal": 108.1,
+          "grand_total": 373.6,
+          "instance_type": "D2s_v5",
+          "instance_spec": "2 vCPU / 8 GB RAM"
+        }
+      }
+    }
+  },
+  "external_api_costs": {
+    "mistral_api": {
+      "model": "mistral-large-latest",
+      "input_price_per_M_tokens": 2.0,
+      "output_price_per_M_tokens": 6.0,
+      "monthly_input_tokens": 33750000,
+      "monthly_output_tokens": 18000000,
+      "monthly_cost_usd": 175.5,
+      "note": "Dominates total cost — OPTIMIZE THIS FIRST (caching, history truncation, smaller model for simple queries)"
+    },
+    "tavily_api": {
+      "searches_per_month": 9000,
+      "price_per_search_usd": 0.01,
+      "monthly_cost_usd": 90.0,
+      "note": "Cache search results for identical queries to reduce cost by 20-40%"
+    },
+    "firebase_firestore": {
+      "monthly_reads": 22500,
+      "monthly_writes": 45000,
+      "monthly_cost_usd": 8.0,
+      "note": "Blaze plan required above free tier limits at this scale"
+    }
+  },
+  "finops": {
+    "recommended_purchase_model": "70% 1-year reserved + 30% on-demand",
+    "rationale": "Base load is predictable (reserved gives 38-40% savings). 30% on-demand covers bursts without spot eviction risk. Avoid 100% spot for LLM chatbot — mid-conversation eviction = bad UX.",
+    "scheduling_policy": {
+      "is_24x7": true,
+      "rationale": "LLM chatbot sessions can start at any time; users expect instant responses",
+      "cost_optimization": "If usage analytics show < 5% traffic between 02:00-08:00 UTC, consider scaling in to min_replicas during that window. Saves ~25% compute at cost of slower cold-start for early users."
+    },
+    "budget_alerts": [
+      {
+        "threshold_pct": 50,
+        "action": "info",
+        "channel": "email"
+      },
+      {
+        "threshold_pct": 80,
+        "action": "warning",
+        "channel": "slack + email"
+      },
+      {
+        "threshold_pct": 100,
+        "action": "critical",
+        "channel": "pagerduty"
+      },
+      {
+        "note": "Set monthly budget = 1.2x optimized scenario grand total"
+      }
+    ],
+    "critical_metrics_post_deploy": [
+      {
+        "metric": "p95_latency_ms",
+        "threshold": 10000,
+        "alert": "SLA breach"
+      },
+      {
+        "metric": "error_rate_pct",
+        "threshold": 1.0,
+        "alert": "Service degradation"
+      },
+      {
+        "metric": "active_threads_pct",
+        "threshold": 80.0,
+        "alert": "Scale-out trigger"
+      },
+      {
+        "metric": "mistral_tokens_per_day",
+        "threshold": 2587500.0,
+        "alert": "Cost spike"
+      },
+      {
+        "metric": "firestore_read_latency_p95_ms",
+        "threshold": 500,
+        "alert": "History growth degradation"
+      },
+      {
+        "metric": "ram_used_pct",
+        "threshold": 85.0,
+        "alert": "Memory pressure"
+      }
+    ],
+    "top_3_cost_optimizations": [
+      {
+        "priority": 1,
+        "action": "Implement conversation history truncation (last 20 messages)",
+        "current_cost_impact": "High — history grows unbounded, inflating Mistral input tokens",
+        "estimated_savings_pct": 25,
+        "effort": "low",
+        "code_change": "get_session_history() returns history[-20:]"
+      },
+      {
+        "priority": 2,
+        "action": "Add Redis cache for Tavily search results (TTL 24h)",
+        "current_cost_impact": "~$90.0/month on Tavily API",
+        "estimated_savings_pct": 30,
+        "effort": "medium",
+        "code_change": "Wrap TavilySearchResults with Redis cache by query hash"
+      },
+      {
+        "priority": 3,
+        "action": "Route simple queries to mistral-small (3x cheaper)",
+        "current_cost_impact": "~$176.0/month all on mistral-large",
+        "estimated_savings_pct": 40,
+        "effort": "medium",
+        "code_change": "Classify query complexity, use mistral-small for 'simple' category"
+      }
+    ]
+  }
+}

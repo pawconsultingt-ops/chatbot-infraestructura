@@ -1,7 +1,7 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-  Scenario 3 — SATURATION: hold 80% of breakpoint users for 30 minutes.
+  Scenario 3 - SATURATION: hold 80% of breakpoint users for 30 minutes.
 
 .DESCRIPTION
   Reads breakpoint.json from Scenario 2 to set the target concurrency.
@@ -11,12 +11,12 @@
 
 param(
     [string]$Token        = $env:STRESS_AUTH_TOKEN,
-    [string]$Host         = "http://localhost:8001",
+    [string]$TargetHost         = "http://localhost:8001",
     [int]   $DurationMin  = 30,
     [int]   $SatUsers     = 0,     # 0 = auto from breakpoint.json (80%)
     [float] $NormalWeight = 0.70,
     [float] $BurstWeight  = 0.30,
-    [int]   $MonInterval  = 10,    # longer interval — 30 min test
+    [int]   $MonInterval  = 10,    # longer interval - 30 min test
     [switch]$WebUI
 )
 
@@ -52,20 +52,20 @@ $DurationS = $DurationMin * 60
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  SCENARIO 3 — SATURATION (stability test)" -ForegroundColor Cyan
+Write-Host "  SCENARIO 3 - SATURATION (stability test)" -ForegroundColor Cyan
 Write-Host "  Users   : $SatUsers (held constant for $DurationMin minutes)" -ForegroundColor Cyan
 Write-Host "  Dataset : ${NormalWeight}x normal + ${BurstWeight}x burst" -ForegroundColor Cyan
-Write-Host "  Target  : $Host" -ForegroundColor Cyan
+Write-Host "  Target  : $TargetHost" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # ── environment ────────────────────────────────────────────────────────────────
 $env:STRESS_AUTH_TOKEN   = $Token
-$env:TARGET_HOST         = $Host
+$env:TARGET_HOST         = $TargetHost
 $env:SAT_DURATION_S      = $DurationS
 $env:SAT_USERS           = $SatUsers
-$env:SAT_NORMAL_WEIGHT   = $NormalWeight
-$env:SAT_BURST_WEIGHT    = $BurstWeight
+$env:SAT_NORMAL_WEIGHT   = $NormalWeight.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$env:SAT_BURST_WEIGHT    = $BurstWeight.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 
 # ── sys_monitor ────────────────────────────────────────────────────────────────
 Write-Host "[1/4] Starting sys_monitor (interval=${MonInterval}s)..." -ForegroundColor Yellow
@@ -73,9 +73,9 @@ $MonArgs = @(
     (Join-Path $SharedDir "sys_monitor.py"),
     "--output", $ResultsDir,
     "--interval", $MonInterval,
-    "--health-url", "$Host/health"
+    "--health-url", "$TargetHost/health"
 )
-$MonProc = Start-Process python -ArgumentList $MonArgs -PassThru -NoNewWindow
+$MonProc = Start-Process "C:\Users\Usuario\AppData\Local\Programs\Python\Python313\python.exe" -ArgumentList $MonArgs -PassThru -NoNewWindow
 Write-Host "      PID: $($MonProc.Id)"
 Start-Sleep -Seconds 2
 
@@ -85,7 +85,7 @@ Write-Host "      Rolling stats written every 60s to rolling_stats.csv" -Foregro
 
 $LocustArgs = @(
     "-f", $LocustFile,
-    "--host", $Host,
+    "--host", $TargetHost,
     "--run-time", "${DurationS}s",
     "--csv", (Join-Path $ResultsDir "locust"),
     "--html", (Join-Path $ResultsDir "report.html"),
@@ -108,7 +108,7 @@ if (-not $MonProc.HasExited) { $MonProc | Stop-Process -Force }
 
 # ── post-process ───────────────────────────────────────────────────────────────
 Write-Host "[4/4] Running post_process..." -ForegroundColor Yellow
-python (Join-Path $SharedDir "post_process.py") --results $ResultsDir --bucket 60
+& "C:\Users\Usuario\AppData\Local\Programs\Python\Python313\python.exe" (Join-Path $SharedDir "post_process.py") --results $ResultsDir --bucket 60
 
 # ── latency drift analysis ─────────────────────────────────────────────────────
 $RollingFile = Join-Path $ResultsDir "rolling_stats.csv"
