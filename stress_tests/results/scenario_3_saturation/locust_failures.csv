@@ -1,1 +1,4 @@
 Method,Name,Error,Occurrences
+POST,/chat [complex],CatchResponseError('HTTP 503'),1
+POST,/chat [simple],CatchResponseError('HTTP 503'),2
+POST,/chat [medium],CatchResponseError('HTTP 503'),1

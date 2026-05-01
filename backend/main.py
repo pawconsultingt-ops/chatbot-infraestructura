@@ -134,30 +134,6 @@ class DeleteResponse(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
-@app.post("/register", tags=["auth"], status_code=status.HTTP_200_OK)
-def register(
-    user: dict[str, Any] = Depends(get_current_user),
-):
-    """Auto-assign the 'assistant_user' role to first-time users.
-
-    Called by the frontend right after login. If the user already has a role,
-    it is left unchanged. If they have no role, 'assistant_user' is assigned.
-
-    Args:
-        user: Injected by :func:`get_current_user` — must have a valid token.
-
-    Returns:
-        Dict with uid, email, and the active role.
-    """
-    from auth import ensure_default_role
-    role = ensure_default_role(user["uid"], default_role="assistant_user")
-    return {
-        "uid":   user["uid"],
-        "email": user.get("email"),
-        "role":  role,
-    }
-
-
 @app.get("/health", tags=["system"])
 def health_check():
     """Public liveness + metrics endpoint — no authentication required.
