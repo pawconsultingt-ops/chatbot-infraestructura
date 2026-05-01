@@ -1,0 +1,7 @@
+ts,endpoint,method,status_code,latency_e2e_ms,inference_ms,tokens_in,tokens_out,used_search,req_bytes,resp_bytes,uid,ram_used_mb,cpu_avg_pct
+2026-05-01T00:55:42.795791+00:00,/health,GET,200,1.218,0.0,0,0,False,0,555,anonymous,11289.5,6.9
+2026-05-01T00:56:15.112912+00:00,/history,OPTIONS,200,0.233,0.0,0,0,False,0,2,anonymous,11831.2,4.1
+2026-05-01T00:56:18.236292+00:00,/history,GET,200,3121.571,0.0,0,0,False,0,34,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11856.6,5.5
+2026-05-01T00:56:33.409602+00:00,/chat,OPTIONS,200,0.294,0.0,0,0,False,0,2,anonymous,11748.2,6.7
+2026-05-01T00:56:52.165420+00:00,/chat,POST,200,18750.885,17480.977,0,0,True,66,1369,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11624.6,6.4
+2026-05-01T00:58:02.359038+00:00,/chat,POST,200,17255.913,15781.896,0,0,False,45,3350,IXxGbRrwlFMW7oTKoiYoInYy9Hn1,11589.0,6.4
