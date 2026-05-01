@@ -103,10 +103,21 @@ def verify_firebase_token(token: str) -> dict[str, Any]:
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
+    uid  = decoded.get("uid")
+    role = decoded.get("role")
+
+    # Auto-assign assistant_user to any authenticated user who has no role yet.
+    if not role and uid:
+        try:
+            fb_auth.set_custom_user_claims(uid, {"role": "assistant_user"})
+            role = "assistant_user"
+        except Exception:
+            pass  # Don't block login if claim assignment fails
+
     return {
-        "uid":   decoded.get("uid"),
+        "uid":   uid,
         "email": decoded.get("email"),
-        "role":  decoded.get("role"),
+        "role":  role,
     }
 
 
